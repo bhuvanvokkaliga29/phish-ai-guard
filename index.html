@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhishAI Guard – AI Threat Detection Platform</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Exo+2:wght@300;400;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="static/css/style.css" />
+</head>
+<body>
+
+<!-- ── BACKGROUND GRID ── -->
+<div class="bg-grid"></div>
+<div class="bg-particles" id="particles"></div>
+<div class="scan-line"></div>
+
+<!-- ── TOP NAV ── -->
+<nav class="topnav">
+  <div class="nav-brand">
+    <span class="brand-icon">⬡</span>
+    <span class="brand-name">PhishAI<span class="brand-accent">Guard</span></span>
+    <span class="brand-version">v2.4.1</span>
+  </div>
+  <div class="nav-status">
+    <span class="status-dot" id="apiStatus"></span>
+    <span class="status-text" id="apiStatusText">Connecting...</span>
+    <div class="nav-pills">
+      <span class="pill">6 Agents Active</span>
+      <span class="pill pill-warn">Real-time Analysis</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── MAIN LAYOUT ── -->
+<main class="main-layout">
+
+  <!-- LEFT PANEL: Input -->
+  <section class="panel panel-input">
+    <div class="panel-header">
+      <span class="panel-icon">◈</span>
+      <h2>Threat Input Terminal</h2>
+      <span class="panel-badge">LIVE</span>
+    </div>
+
+    <!-- Tab Switcher -->
+    <div class="tab-bar">
+      <button class="tab active" data-tab="email">
+        <span>📧</span> Email / Message
+      </button>
+      <button class="tab" data-tab="url">
+        <span>🌐</span> URL Scan
+      </button>
+      <button class="tab" data-tab="transaction">
+        <span>💰</span> Transaction
+      </button>
+      <button class="tab" data-tab="full">
+        <span>🔍</span> Full Analysis
+      </button>
+    </div>
+
+    <!-- Email Tab -->
+    <div class="tab-content active" id="tab-email">
+      <div class="field-group">
+        <label class="field-label">Suspicious Message / Email Body</label>
+        <textarea class="field-input" id="emailText" rows="6"
+          placeholder="Paste the suspicious email content here...&#10;&#10;Example: URGENT! Your account has been suspended. Verify immediately..."></textarea>
+        <div class="field-meta">
+          <span id="emailCharCount">0 chars</span>
+          <span class="field-tip">Paste full email body for best accuracy</span>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Sender Email Address <span class="optional">(optional)</span></label>
+        <input class="field-input" id="senderEmail" type="email"
+          placeholder="e.g. security@paypa1-accounts.xyz" />
+      </div>
+    </div>
+
+    <!-- URL Tab -->
+    <div class="tab-content" id="tab-url">
+      <div class="field-group">
+        <label class="field-label">Suspicious URL</label>
+        <input class="field-input" id="urlInput" type="text"
+          placeholder="e.g. http://paypa1-secure.xyz/verify?token=abc123" />
+        <div class="url-indicators" id="urlIndicators"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Context / Accompanying Text <span class="optional">(optional)</span></label>
+        <textarea class="field-input" id="urlContext" rows="3"
+          placeholder="Any email or message containing this URL..."></textarea>
+      </div>
+    </div>
+
+    <!-- Transaction Tab -->
+    <div class="tab-content" id="tab-transaction">
+      <div class="transaction-grid">
+        <div class="field-group">
+          <label class="field-label">Transaction Amount (USD)</label>
+          <div class="amount-input-wrap">
+            <span class="amount-prefix">$</span>
+            <input class="field-input amount-input" id="txAmount" type="number"
+              placeholder="0.00" min="0" step="0.01" />
+          </div>
+          <div class="risk-threshold-bar" id="thresholdBar"></div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Daily Frequency</label>
+          <input class="field-input" id="txFrequency" type="number"
+            placeholder="How many times per day?" min="0" max="100" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Transaction Notes / Context</label>
+        <textarea class="field-input" id="txContext" rows="3"
+          placeholder="Any additional context about this transaction..."></textarea>
+      </div>
+      <div class="aml-thresholds">
+        <div class="threshold-item">
+          <span class="t-color green"></span>
+          <span>Normal: &lt;$5,000</span>
+        </div>
+        <div class="threshold-item">
+          <span class="t-color yellow"></span>
+          <span>SAR Level: $5K–$9K</span>
+        </div>
+        <div class="threshold-item">
+          <span class="t-color orange"></span>
+          <span>Structuring: $9K–$10K</span>
+        </div>
+        <div class="threshold-item">
+          <span class="t-color red"></span>
+          <span>CTR Required: &gt;$10K</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full Analysis Tab -->
+    <div class="tab-content" id="tab-full">
+      <div class="field-group">
+        <label class="field-label">Email / Message Body</label>
+        <textarea class="field-input" id="fullText" rows="4"
+          placeholder="Full email or message content..."></textarea>
+      </div>
+      <div class="two-col">
+        <div class="field-group">
+          <label class="field-label">URL</label>
+          <input class="field-input" id="fullUrl" type="text" placeholder="Suspicious URL..." />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Sender Email</label>
+          <input class="field-input" id="fullSender" type="email" placeholder="sender@domain.com" />
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="field-group">
+          <label class="field-label">Amount ($)</label>
+          <input class="field-input" id="fullAmount" type="number" placeholder="0" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Frequency/day</label>
+          <input class="field-input" id="fullFreq" type="number" placeholder="0" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Test Cases -->
+    <div class="test-cases-section">
+      <div class="section-label">⚡ Quick Test Cases</div>
+      <div class="test-case-pills" id="testCasePills">
+        <button class="tc-pill loading">Loading...</button>
+      </div>
+    </div>
+
+    <!-- Analyze Button -->
+    <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">
+      <span class="btn-icon">◈</span>
+      <span class="btn-text">ANALYZE THREAT</span>
+      <span class="btn-glow"></span>
+    </button>
+
+    <div class="analysis-progress" id="analysisProgress">
+      <div class="progress-agents" id="progressAgents"></div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CENTER/RIGHT: Results -->
+  <section class="panel panel-results" id="resultsPanel">
+
+    <!-- Default state -->
+    <div class="results-placeholder" id="resultsPlaceholder">
+      <div class="placeholder-icon">⬡</div>
+      <h3>Awaiting Input</h3>
+      <p>Enter suspicious content and click Analyze to begin threat assessment</p>
+      <div class="placeholder-features">
+        <div class="pf-item"><span>🤖</span> 6 AI Agents</div>
+        <div class="pf-item"><span>🔍</span> NLP Analysis</div>
+        <div class="pf-item"><span>🌐</span> URL Intelligence</div>
+        <div class="pf-item"><span>💰</span> AML Detection</div>
+        <div class="pf-item"><span>🧬</span> Behavioral Entropy</div>
+        <div class="pf-item"><span>🛡️</span> Threat Intel</div>
+      </div>
+    </div>
+
+    <!-- Results (hidden until analysis) -->
+    <div class="results-content" id="resultsContent" style="display:none">
+
+      <!-- Score Hero -->
+      <div class="score-hero" id="scoreHero">
+        <div class="score-ring-wrap">
+          <svg class="score-ring" viewBox="0 0 200 200">
+            <circle class="ring-bg" cx="100" cy="100" r="85" />
+            <circle class="ring-fill" id="ringFill" cx="100" cy="100" r="85"
+              stroke-dasharray="534" stroke-dashoffset="534" />
+          </svg>
+          <div class="score-center">
+            <div class="score-number" id="scoreNumber">0</div>
+            <div class="score-label">THREAT SCORE</div>
+          </div>
+        </div>
+        <div class="score-meta">
+          <div class="risk-badge" id="riskBadge">ANALYZING</div>
+          <div class="attack-type" id="attackType">—</div>
+          <div class="score-stats">
+            <div class="stat">
+              <span class="stat-val" id="confidenceVal">—</span>
+              <span class="stat-key">Confidence</span>
+            </div>
+            <div class="stat">
+              <span class="stat-val" id="processingTime">—</span>
+              <span class="stat-key">Process Time</span>
+            </div>
+            <div class="stat">
+              <span class="stat-val" id="agentsRun">6</span>
+              <span class="stat-key">Agents Run</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Signal Breakdown -->
+      <div class="section-block">
+        <div class="section-header">
+          <span class="sh-icon">◈</span>
+          <h3>Agent Signal Breakdown</h3>
+        </div>
+        <div class="agent-signals" id="agentSignals"></div>
+      </div>
+
+      <!-- Attack Probability Radar -->
+      <div class="section-block">
+        <div class="section-header">
+          <span class="sh-icon">◈</span>
+          <h3>Attack Classification</h3>
+        </div>
+        <div class="attack-bars" id="attackBars"></div>
+      </div>
+
+      <!-- Findings / Explanation -->
+      <div class="section-block">
+        <div class="section-header">
+          <span class="sh-icon">◈</span>
+          <h3>Evidence & Findings</h3>
+        </div>
+        <div class="findings-list" id="findingsList"></div>
+      </div>
+
+      <!-- Recommendations -->
+      <div class="section-block">
+        <div class="section-header">
+          <span class="sh-icon">◈</span>
+          <h3>Recommended Actions</h3>
+        </div>
+        <div class="recommendations" id="recommendations"></div>
+      </div>
+
+      <!-- Threat Intel -->
+      <div class="section-block">
+        <div class="section-header">
+          <span class="sh-icon">◈</span>
+          <h3>Threat Intelligence</h3>
+        </div>
+        <div class="threat-intel" id="threatIntel"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RIGHT SIDEBAR: History & Stats -->
+  <aside class="sidebar">
+    <div class="sidebar-block">
+      <div class="sb-header">📊 Session Stats</div>
+      <div class="stats-grid" id="statsGrid">
+        <div class="sg-item"><span class="sg-val" id="statTotal">0</span><span class="sg-key">Analyzed</span></div>
+        <div class="sg-item"><span class="sg-val" id="statAvg">—</span><span class="sg-key">Avg Score</span></div>
+      </div>
+      <canvas id="miniChart" width="220" height="80"></canvas>
+    </div>
+
+    <div class="sidebar-block">
+      <div class="sb-header">🕒 Recent Analyses</div>
+      <div class="history-list" id="historyList">
+        <div class="history-empty">No analyses yet</div>
+      </div>
+    </div>
+
+    <div class="sidebar-block">
+      <div class="sb-header">🤖 Active Agents</div>
+      <div class="agent-list">
+        <div class="agent-item"><span class="ag-dot pulse"></span> KeywordNLP<span class="ag-weight">×1.4</span></div>
+        <div class="agent-item"><span class="ag-dot pulse"></span> URLIntelligence<span class="ag-weight">×1.6</span></div>
+        <div class="agent-item"><span class="ag-dot pulse"></span> EmailHeader<span class="ag-weight">×1.2</span></div>
+        <div class="agent-item"><span class="ag-dot pulse"></span> AMLTransaction<span class="ag-weight">×1.5</span></div>
+        <div class="agent-item"><span class="ag-dot pulse"></span> BehavioralEntropy<span class="ag-weight">×0.9</span></div>
+        <div class="agent-item"><span class="ag-dot pulse"></span> ThreatIntel<span class="ag-weight">×1.3</span></div>
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+  <span>PhishAI Guard v2.4.1 · 6-Agent Ensemble Pipeline · Built by Bhuvan Vokkaliga</span>
+  <span class="footer-right">Content Fingerprint: <span id="footerHash">—</span></span>
+</footer>
+
+<script src="static/js/app.js"></script>
+</body>
+</html>
