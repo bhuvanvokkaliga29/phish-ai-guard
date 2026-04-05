@@ -288,7 +288,7 @@ phishai-guard/
 ## 👨‍💻 Built By
 
 **Bhuvan Vokkaliga** — AI & ML Engineer, Full-Stack Developer  
-AMC Engineering College, Bengaluru | Co-founder @ Webix & Vibesholic Media  
+AMC Engineering College, Bengaluru |founder @ Webi
 GitHub: [bhuvanvokkaliga29](https://github.com/bhuvanvokkaliga29)
 
 ---
