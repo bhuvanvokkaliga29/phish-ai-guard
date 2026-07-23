@@ -21,7 +21,7 @@ const RISK_COLORS = {
 
 const AGENTS = [
   'KeywordNLP', 'URLIntelligence', 'EmailHeader',
-  'AMLTransaction', 'BehavioralEntropy', 'ThreatIntel'
+  'AMLTransaction', 'BehavioralEntropy', 'ThreatIntel', 'DomainIntel'
 ];
 
 let currentTab = 'email';
@@ -308,7 +308,7 @@ function renderResults(data) {
   const content = document.getElementById('resultsContent');
   content.style.display = 'block';
 
-  const color = RISK_COLORS[data.risk_level] || '#00e5ff';
+  const color = RISK_COLORS[data.risk_level] || '#ff0000';
 
   // Animate score ring
   animateRing(data.final_score, color);
@@ -431,7 +431,7 @@ function renderFindings(findings) {
   const container = document.getElementById('findingsList');
   container.innerHTML = '';
   if (!findings.length) {
-    container.innerHTML = '<div class="finding-item ok">✅ No threats detected</div>';
+    container.innerHTML = '<div class="finding-item ok">⬜ No threats detected</div>';
     return;
   }
   findings.forEach((f, i) => {
@@ -544,7 +544,7 @@ function drawMiniChart() {
   const stepX = w / (scores.length - 1);
 
   ctx.beginPath();
-  ctx.strokeStyle = '#00e5ff';
+  ctx.strokeStyle = '#ff0000';
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
 
@@ -559,7 +559,7 @@ function drawMiniChart() {
   ctx.lineTo((scores.length - 1) * stepX, h);
   ctx.lineTo(0, h);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(0,229,255,0.08)';
+  ctx.fillStyle = 'rgba(255,0,0,0.08)';
   ctx.fill();
 
   // Dots
@@ -583,7 +583,7 @@ function scoreColor(score) {
 }
 
 function showNotification(msg, type = 'info') {
-  const colors = { info: '#00e5ff', warn: '#ffcc00', error: '#ff2244' };
+  const colors = { info: '#ffffff', warn: '#ffcc00', error: '#ff2244' };
   const div = document.createElement('div');
   div.style.cssText = `
     position:fixed;bottom:60px;right:24px;z-index:9999;
@@ -670,7 +670,7 @@ function localAnalysisEngine(payload) {
 
   const recs = finalScore >= 60
     ? ['🛡️ DO NOT click any links', '🛡️ Report to security team', '⚠️ Verify sender through official channel']
-    : ['✅ Content appears legitimate — standard caution applies'];
+    : ['⬜ Content appears legitimate — standard caution applies'];
 
   return {
     final_score: finalScore,
@@ -687,7 +687,7 @@ function localAnalysisEngine(payload) {
       'Brand Impersonation': Math.round(emailScore * 100),
       'Malware Distribution': Math.round(urlScore * 60),
     },
-    explanation: findings.length ? findings : ['✅ No significant threats detected in this content'],
+    explanation: findings.length ? findings : ['⬜ No significant threats detected in this content'],
     recommendations: recs,
     threat_intel: {
       ioc_matches: [],
@@ -756,7 +756,7 @@ function initParticles() {
       position:absolute;
       width:${size}px;height:${size}px;
       border-radius:50%;
-      background:rgba(0,229,255,${Math.random() * 0.3 + 0.05});
+      background:rgba(255,0,0,${Math.random() * 0.3 + 0.05});
       left:${Math.random() * 100}%;
       top:${Math.random() * 100}%;
       animation:particleDrift ${Math.random() * 20 + 15}s linear infinite;

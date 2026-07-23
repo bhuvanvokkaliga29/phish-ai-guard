@@ -9,17 +9,20 @@ import sys
 import os
 import time
 from pathlib import Path
+import sqlite3
+import csv
+import io
 
 # Add parent dir to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from flask import Flask, request, jsonify, send_from_directory
+    from flask import Flask, request, jsonify, send_from_directory, Response
     from flask_cors import CORS
 except ImportError:
     print("Installing dependencies...")
     os.system("pip install flask flask-cors --break-system-packages -q")
-    from flask import Flask, request, jsonify, send_from_directory
+    from flask import Flask, request, jsonify, send_from_directory, Response
     from flask_cors import CORS
 
 from agents.orchestrator import (
@@ -31,8 +34,21 @@ CORS(app)
 
 orchestrator = PhishAIOrchestrator()
 
-# In-memory history (last 10 analyses)
-analysis_history = []
+# Initialize SQLite database
+if os.environ.get("VERCEL") == "1":
+    DB_PATH = Path("/tmp/history.db")
+else:
+    DB_PATH = Path(__file__).parent / "history.db"
+def init_db():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS history
+            (id INTEGER PRIMARY KEY AUTOINCREMENT,
+             timestamp TEXT,
+             score INTEGER,
+             risk_level TEXT,
+             attack_type TEXT,
+             preview TEXT)''')
+init_db()
 
 
 @app.route("/")
@@ -58,18 +74,13 @@ def analyze():
         result = orchestrator.analyze(req)
         result_dict = result_to_dict(result)
 
-        # Store in history
-        history_entry = {
-            "id": len(analysis_history) + 1,
-            "timestamp": result_dict["timestamp"],
-            "score": result_dict["final_score"],
-            "risk_level": result_dict["risk_level"],
-            "attack_type": result_dict["attack_type"],
-            "preview": (data.get("text", "") or data.get("url", "") or "Transaction")[:60]
-        }
-        analysis_history.insert(0, history_entry)
-        if len(analysis_history) > 10:
-            analysis_history.pop()
+        # Store in history DB
+        preview = (data.get("text", "") or data.get("url", "") or "Transaction")[:60]
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute('''INSERT INTO history (timestamp, score, risk_level, attack_type, preview)
+                            VALUES (?, ?, ?, ?, ?)''',
+                         (result_dict["timestamp"], result_dict["final_score"], 
+                          result_dict["risk_level"], result_dict["attack_type"], preview))
 
         return jsonify({"success": True, "data": result_dict})
 
@@ -79,29 +90,60 @@ def analyze():
 
 @app.route("/api/history", methods=["GET"])
 def get_history():
-    return jsonify({"success": True, "data": analysis_history[:5]})
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM history ORDER BY id DESC LIMIT 5")
+        rows = [dict(r) for r in cur.fetchall()]
+    return jsonify({"success": True, "data": rows})
 
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
-    if not analysis_history:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute("SELECT score, risk_level FROM history")
+        rows = cur.fetchall()
+
+    if not rows:
         return jsonify({"success": True, "data": {
             "total": 0, "avg_score": 0,
             "risk_distribution": {"Safe": 0, "Suspicious": 0, "High Risk": 0, "Critical": 0}
         }})
 
-    total = len(analysis_history)
-    avg_score = sum(h["score"] for h in analysis_history) / total
+    total = len(rows)
+    avg_score = sum(r["score"] for r in rows) / total
     dist = {}
-    for h in analysis_history:
-        r = h["risk_level"]
-        dist[r] = dist.get(r, 0) + 1
+    for r in rows:
+        risk = r["risk_level"]
+        dist[risk] = dist.get(risk, 0) + 1
 
     return jsonify({"success": True, "data": {
         "total": total,
         "avg_score": round(avg_score, 1),
         "risk_distribution": dist
     }})
+
+@app.route("/api/export", methods=["GET"])
+def export_history():
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id, timestamp, score, risk_level, attack_type, preview FROM history ORDER BY id DESC")
+        rows = cur.fetchall()
+        
+    si = io.StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['ID', 'Timestamp', 'Score', 'Risk Level', 'Attack Type', 'Preview'])
+    cw.writerows(rows)
+    
+    output = si.getvalue()
+    
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=phishai_history.csv"}
+    )
 
 
 @app.route("/api/test-cases", methods=["GET"])
@@ -161,5 +203,5 @@ def health():
 
 
 if __name__ == "__main__":
-    print("🛡️  PhishAI Guard API starting on http://localhost:5000")
+    print("PhishAI Guard API starting on http://localhost:5000")
     app.run(debug=True, port=5000, host="0.0.0.0")

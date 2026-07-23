@@ -15,7 +15,9 @@ from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 import urllib.parse
-
+import whois
+import dns.resolver
+from datetime import datetime, timezone
 
 # ──────────────────────────────────────────────
 # DATA MODELS
@@ -735,6 +737,86 @@ class ThreatIntelAgent(BaseAgent):
 # ──────────────────────────────────────────────
 # ENSEMBLE ORCHESTRATOR
 # ──────────────────────────────────────────────
+# AGENT 7 – DOMAIN INTELLIGENCE AGENT
+# ──────────────────────────────────────────────
+
+class DomainIntelligenceAgent(BaseAgent):
+    name = "DomainIntel"
+    weight = 1.2
+
+    def analyze(self, request: AnalysisRequest) -> AgentSignal:
+        url = request.url.strip()
+        email = request.sender_email.strip()
+        
+        domain = ""
+        if url:
+            try:
+                parsed = urllib.parse.urlparse(url if url.startswith("http") else "http://" + url)
+                domain = parsed.netloc.lower()
+            except:
+                pass
+        elif email and "@" in email:
+            domain = email.split("@")[-1].lower()
+
+        if not domain:
+            return AgentSignal(
+                agent=self.name, score=0.0, confidence=0.2,
+                findings=["ℹ️ No domain available for WHOIS/DNS lookup"],
+                evidence={}, weight=self.weight
+            )
+
+        score = 0.0
+        findings = []
+        evidence = {"domain": domain}
+
+        # DNS Check (MX records for email)
+        try:
+            mx_records = dns.resolver.resolve(domain, 'MX')
+            evidence["has_mx"] = True
+        except Exception:
+            evidence["has_mx"] = False
+            if email:
+                score += 0.40
+                findings.append(f"🔴 No MX records found for '{domain}' - cannot receive email (forged sender)")
+            else:
+                score += 0.15
+                findings.append(f"⚠️ No MX records for '{domain}'")
+
+        # WHOIS Check
+        try:
+            w = whois.whois(domain)
+            creation_date = w.creation_date
+            if isinstance(creation_date, list):
+                creation_date = creation_date[0]
+            
+            if creation_date:
+                age_days = (datetime.now() - creation_date).days
+                evidence["domain_age_days"] = age_days
+                if age_days < 30:
+                    score += 0.50
+                    findings.append(f"🚨 Domain is brand new ({age_days} days old) - classic phishing indicator")
+                elif age_days < 180:
+                    score += 0.20
+                    findings.append(f"⚠️ Domain is relatively new ({age_days} days old)")
+            else:
+                score += 0.10
+                findings.append("🔍 WHOIS creation date hidden or unavailable")
+        except Exception as e:
+            score += 0.20
+            findings.append("🔍 WHOIS lookup failed (domain might be unregistered or blocked)")
+
+        confidence = 0.85 if score > 0 else 0.5
+        return AgentSignal(
+            agent=self.name,
+            score=self._clamp(score),
+            confidence=confidence,
+            findings=findings if findings else ["✅ Domain registration and DNS look legitimate"],
+            evidence=evidence,
+            weight=self.weight
+        )
+
+
+# ──────────────────────────────────────────────
 
 class PhishAIOrchestrator:
     """
@@ -751,6 +833,7 @@ class PhishAIOrchestrator:
             AMLTransactionAgent(),
             BehavioralEntropyAgent(),
             ThreatIntelAgent(),
+            DomainIntelligenceAgent(),
         ]
 
     def analyze(self, request: AnalysisRequest) -> AnalysisResult:
